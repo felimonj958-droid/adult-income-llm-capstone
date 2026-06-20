@@ -1,0 +1,80 @@
+project:
+  name: adult-income-llm-capstone
+  problem_type: classification
+  target_column: income
+  random_state: 42
+
+paths:
+  data_raw: data/raw/adult.data
+  model_output: models/best_model.joblib
+  metrics_output: artifacts/metrics.json
+  predictions_output: artifacts/test_predictions.csv
+
+mlflow:
+  tracking_uri: file:./mlruns
+  experiment_name: adult-income-classification
+
+data:
+  test_size: 0.20
+  validation_size: 0.20
+  drop_columns:
+    - fnlwgt
+  categorical_features:
+    - workclass
+    - education
+    - marital-status
+    - occupation
+    - relationship
+    - race
+    - sex
+    - native-country
+  numeric_features:
+    - age
+    - education-num
+    - capital-gain
+    - capital-loss
+    - hours-per-week
+
+preprocessing:
+  missing_strategy_categorical: most_frequent
+  missing_strategy_numeric: median
+  scale_numeric: true
+  handle_unknown_categories: ignore
+
+training:
+  run_baseline_models: true
+  scoring_metric: f1
+  probability_threshold: 0.50
+
+models:
+  logistic_regression:
+    enabled: true
+    params:
+      C: 1.0
+      max_iter: 1000
+      class_weight: balanced
+
+  random_forest:
+    enabled: true
+    params:
+      n_estimators: 300
+      max_depth: 12
+      min_samples_split: 10
+      min_samples_leaf: 4
+      class_weight: balanced
+      n_jobs: -1
+
+  gradient_boosting:
+    enabled: true
+    params:
+      n_estimators: 200
+      learning_rate: 0.05
+      max_depth: 3
+
+evaluation:
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1
+    - roc_auc

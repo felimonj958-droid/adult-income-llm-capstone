@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.vscode/
+**/.DS_Store
+
+# Coverage / reports
+coverage.xml
+htmlcov/
+
+# MLflow
+mlruns/
+
+# Logs
+logs/
+*.log
+
+# Generated artifacts
+artifacts/*
+!artifacts/.gitkeep
+
+# Models
+models/*
+!models/.gitkeep
+!models/*.dvc
+
+# Data
+data/*
+!data/.gitkeep
+!data/raw/
+data/raw/*
+!data/raw/*.dvc
+!data/raw/.gitignore
+
+
+# DVC local cache/temp
+.dvc/cache/
+.dvc/tmp/
