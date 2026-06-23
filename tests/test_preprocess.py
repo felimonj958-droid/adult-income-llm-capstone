@@ -1,23 +1,21 @@
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 
-from src.utils.config import load_config
 from src.preprocess import (
-    load_raw_data,
-    clean_data,
-    split_features_target,
     build_preprocessor,
+    clean_data,
+    load_raw_data,
+    split_features_target,
 )
+from src.utils.config import load_config
 
 
 def test_load_raw_data_shape_and_columns():
     config = load_config()
     df = load_raw_data(config["paths"]["data_raw"])
 
-    # Basic sanity: non-empty, expected number of columns including target
     assert not df.empty
     assert "income" in df.columns
-    # adult.data has 15 columns including target before dropping fnlwgt
     assert len(df.columns) == 15
 
 
@@ -27,10 +25,8 @@ def test_clean_data_drops_fnlwgt_and_standardizes_income():
 
     cleaned = clean_data(df, drop_columns=config["data"]["drop_columns"])
 
-    # fnlwgt should be dropped
     assert "fnlwgt" not in cleaned.columns
 
-    # income labels should be normalized to the two expected classes
     unique_labels = sorted(cleaned["income"].unique().tolist())
     assert unique_labels == ["<=50K", ">50K"]
 
@@ -44,7 +40,6 @@ def test_clean_data_does_not_mutate_original():
     _ = clean_data(df, drop_columns=config["data"]["drop_columns"])
 
     assert df.equals(df_before)
-
 
 
 def test_build_preprocessor_and_transform_shape():
@@ -65,10 +60,8 @@ def test_build_preprocessor_and_transform_shape():
 
     assert isinstance(preprocessor, ColumnTransformer)
 
-    # Fit and transform a small sample; ensure output shape matches number of rows
     X_sample = X.head(100)
     transformed = preprocessor.fit_transform(X_sample)
 
     assert transformed.shape[0] == X_sample.shape[0]
-    # There should be more columns after one-hot encoding categoricals
     assert transformed.shape[1] > len(config["data"]["numeric_features"])

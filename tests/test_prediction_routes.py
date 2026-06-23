@@ -2,7 +2,6 @@ from fastapi.testclient import TestClient
 
 from src.main import app
 
-
 client = TestClient(app)
 
 
@@ -43,6 +42,7 @@ def test_predict_structured_success():
     assert data["prediction"] in ["<=50K", ">50K"]
     assert 0.0 <= data["probability_gt_50k"] <= 1.0
     assert isinstance(data["model_name"], str)
+    assert data["model_name"]
 
 
 def test_predict_structured_invalid_input_returns_422():
@@ -80,7 +80,7 @@ def test_predict_structured_missing_required_field_returns_422():
         "sex": "Male",
         "capital-gain": 2174,
         "capital-loss": 0,
-        "hours-per-week": 40
+        "hours-per-week": 40,
     }
 
     response = client.post("/predict-structured", json=payload)

@@ -18,10 +18,14 @@ from src.utils.config import load_config, resolve_path
 
 def main():
     config = load_config()
-
     tracking_uri = config["mlflow"]["tracking_uri"]
     experiment_name = config["mlflow"]["experiment_name"]
     scoring_metric = config["training"]["scoring_metric"]
+
+    # Normalize file-based tracking URIs to absolute paths
+    if isinstance(tracking_uri, str) and tracking_uri.startswith("file:"):
+        raw_path = tracking_uri[5:]
+        tracking_uri = f"file:{resolve_path(raw_path)}"
 
     mlflow.set_tracking_uri(tracking_uri)
 

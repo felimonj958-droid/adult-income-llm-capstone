@@ -3,10 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.llm.client import LLMClient, LLMClientError
 from src.llm.dependencies import get_llm_client
 from src.schemas.inference import ExplainPredictionResponse, Features, PredictionResult
-from src.services.explanation import (
-    EXPLANATION_SYSTEM_PROMPT,
-    build_explanation_prompt,
-)
+from src.services.explanation import build_prediction_explanation
 from src.services.predict import predict_from_features
 
 router = APIRouter(tags=["prediction"])
@@ -16,8 +13,13 @@ router = APIRouter(tags=["prediction"])
 def predict_structured(features: Features) -> PredictionResult:
     try:
         return predict_from_features(features)
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while generating the prediction.",
+        ) from exc
 
 
 @router.post("/explain-prediction", response_model=ExplainPredictionResponse)
@@ -27,11 +29,11 @@ def explain_prediction(
 ) -> ExplainPredictionResponse:
     try:
         prediction_result = predict_from_features(features)
-        prompt = build_explanation_prompt(features, prediction_result)
 
-        explanation = llm_client.chat(
-            user_message=prompt,
-            system_prompt=EXPLANATION_SYSTEM_PROMPT,
+        explanation = build_prediction_explanation(
+            llm_client=llm_client,
+            features=features,
+            prediction_result=prediction_result,
         )
 
         return ExplainPredictionResponse(
@@ -42,5 +44,10 @@ def explain_prediction(
         )
     except LLMClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while explaining the prediction.",
+        ) from exc

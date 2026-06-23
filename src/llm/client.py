@@ -1,10 +1,10 @@
+import json
 import os
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
-
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
@@ -48,6 +48,28 @@ class LLMClient:
             }
         )
 
+    def parse_json(self, text: str) -> dict:
+        cleaned = text.strip()
+
+        if cleaned.startswith("```"):
+            lines = cleaned.splitlines()
+
+            if lines and lines.startswith("```"):
+                lines = lines[1:]
+
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+
+            cleaned = "\n".join(lines).strip()
+
+            if cleaned.lower().startswith("json"):
+                cleaned = cleaned[4:].strip()
+
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as exc:
+            raise LLMClientError(f"LLM returned invalid JSON: {text}") from exc
+
     def generate(
         self,
         messages: List[Dict[str, str]],
@@ -76,11 +98,19 @@ class LLMClient:
             raise LLMClientError(f"LLM API did not return valid JSON: {response.text}") from exc
 
         try:
-            content = data["choices"][0]["message"]["content"]
-            if not content:
+            choices = data.get("choices", [])
+            if not choices:
+                raise LLMClientError(f"Unexpected LLM API response format: {data}")
+
+            message = choices[0].get("message", {})
+            content = message.get("content")
+
+
+            if content is None or not str(content).strip():
                 raise LLMClientError(f"LLM API returned an empty message content: {data}")
-            return content.strip()
-        except (KeyError, IndexError, TypeError) as exc:
+
+            return str(content).strip()
+        except (AttributeError, IndexError, TypeError) as exc:
             raise LLMClientError(f"Unexpected LLM API response format: {data}") from exc
 
     def chat(

@@ -1,20 +1,23 @@
-from pathlib import Path
+
 import json
 
+from pathlib import Path
+import tempfile
+import json
 import joblib
 import mlflow
 import mlflow.sklearn
-import pandas as pd
 
-from sklearn.compose import ColumnTransformer
+
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 
-from src.utils.config import load_config
+from src.utils.config import load_config, resolve_path
 from src.preprocess import load_raw_data, clean_data, split_features_target, build_preprocessor
+import logging
 
 
 def build_model(model_name: str, params: dict, random_state: int):
@@ -24,17 +27,11 @@ def build_model(model_name: str, params: dict, random_state: int):
         return RandomForestClassifier(random_state=random_state, **params)
     if model_name == "gradient_boosting":
         return GradientBoostingClassifier(random_state=random_state, **params)
-
     raise ValueError(f"Unsupported model: {model_name}")
 
 
 def evaluate_model(model, X_test, y_test) -> dict:
     y_pred = model.predict(X_test)
-
-    if hasattr(model, "predict_proba"):
-        y_proba = model.predict_proba(X_test)[:, 1]
-    else:
-        y_proba = None
 
     metrics = {
         "accuracy": accuracy_score(y_test, y_pred),
@@ -43,18 +40,45 @@ def evaluate_model(model, X_test, y_test) -> dict:
         "f1": f1_score(y_test, y_pred, pos_label=">50K"),
     }
 
-    if y_proba is not None:
+    if hasattr(model, "predict_proba"):
+        y_proba = model.predict_proba(X_test)[:, 1]
         y_true_binary = (y_test == ">50K").astype(int)
         metrics["roc_auc"] = roc_auc_score(y_true_binary, y_proba)
 
     return metrics
 
 
+def log_common_run_info(config: dict, model_name: str, params: dict):
+    mlflow.log_param("model_name", model_name)
+    mlflow.log_param("random_state", config["project"]["random_state"])
+    mlflow.log_param("test_size", config["data"]["test_size"])
+    mlflow.log_param("target_column", config["project"]["target_column"])
+    mlflow.log_param("data_path", str(config["paths"]["data_raw"]))
+
+    for param_name, param_value in params.items():
+        mlflow.log_param(param_name, param_value)
+
+    mlflow.set_tag("project", config["project"]["name"])
+    mlflow.set_tag("experiment_type", "tabular_classification")
+    mlflow.set_tag("dataset", "adult_income")
+    mlflow.set_tag("stage", "capstone")
+
+
 def main():
     config = load_config()
 
-    mlflow.set_tracking_uri(config["mlflow"]["tracking_uri"])
+    # Normalize file-based tracking URIs to absolute paths so mlflow can locate
+    # the tracking store regardless of the current working directory.
+    tracking_uri = config["mlflow"]["tracking_uri"]
+    if isinstance(tracking_uri, str) and tracking_uri.startswith("file:"):
+        # extract path after 'file:' and resolve it
+        raw_path = tracking_uri[5:]
+        resolved = resolve_path(raw_path)
+        tracking_uri = f"file:{resolved}"
+
+    mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(config["mlflow"]["experiment_name"])
+    logging.info("MLflow tracking uri set to %s", tracking_uri)
 
     df = load_raw_data(config["paths"]["data_raw"])
     df = clean_data(df, drop_columns=config["data"]["drop_columns"])
@@ -105,24 +129,22 @@ def main():
             pipeline.fit(X_train, y_train)
             metrics = evaluate_model(pipeline, X_test, y_test)
 
-            mlflow.log_param("model_name", model_name)
-            mlflow.log_param("random_state", config["project"]["random_state"])
-            mlflow.log_param("test_size", config["data"]["test_size"])
-            mlflow.log_param("target_column", config["project"]["target_column"])
-
-            for param_name, param_value in params.items():
-                mlflow.log_param(param_name, param_value)
+            log_common_run_info(config, model_name, params)
 
             for metric_name, metric_value in metrics.items():
                 mlflow.log_metric(metric_name, metric_value)
 
             input_example = X_train.head(5)
+
             mlflow.sklearn.log_model(
                 sk_model=pipeline,
                 name="model",
                 input_example=input_example,
             )
 
+            config_path = resolve_path("configs/config.yaml")
+            if config_path.exists():
+                mlflow.log_artifact(str(config_path), artifact_path="config")
 
             score_name = config["training"]["scoring_metric"]
             score_value = metrics[score_name]
@@ -132,6 +154,8 @@ def main():
                 best_model = pipeline
                 best_model_name = model_name
                 best_metrics = metrics
+
+
 
     if best_model is None:
         raise RuntimeError("No model was trained. Check config.yaml model settings.")
