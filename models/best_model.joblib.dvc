@@ -1,0 +1,5 @@
+outs:
+- md5: 0888bb3291bfef21106972bbb58e93d6
+  size: 386573
+  hash: md5
+  path: best_model.joblib
