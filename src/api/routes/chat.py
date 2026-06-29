@@ -11,22 +11,37 @@ router = APIRouter(tags=["chat"])
 
 
 EXTRACTION_PROMPT = """
-You extract structured Adult Income features from a user's natural-language message.
+You convert a user's natural-language description into Adult Income features.
 
 Return valid JSON only.
+Do not include markdown.
+Do not include commentary.
+Do not include reasoning.
+Do not include any text before or after the JSON.
 
 Required keys:
-age, workclass, education, education-num, marital-status, occupation,
-relationship, race, sex, capital-gain, capital-loss, hours-per-week, native-country
+age
+workclass
+education
+education-num
+marital-status
+occupation
+relationship
+race
+sex
+capital-gain
+capital-loss
+hours-per-week
+native-country
 
 Rules:
-- Use only information explicitly provided by the user.
-- Do not guess missing values.
-- If any required field is missing or ambiguous, return:
+- Use only information explicitly stated by the user.
+- Do not guess or infer unstated values.
+- Do not map vague phrases into a category unless the category is explicitly clear.
+- If any required field is missing or ambiguous, return exactly:
   {"needs_clarification": true, "explanation": "brief message describing what is missing"}
-- If all required fields are present, return a JSON object with exactly the required keys.
-- capital-gain and capital-loss may be 0 only if your application policy explicitly allows that default.
-- Do not include markdown, commentary, or extra text.
+- If all required fields are present, return exactly one JSON object containing only the required keys.
+- Output JSON only.
 """.strip()
 
 
@@ -39,7 +54,10 @@ def chat(
         extraction = llm_client.chat(
             user_message=payload.message,
             system_prompt=EXTRACTION_PROMPT,
+            temperature=0.0,
+            max_tokens=160,
         )
+
         parsed = llm_client.parse_json(extraction)
 
         if parsed.get("needs_clarification"):

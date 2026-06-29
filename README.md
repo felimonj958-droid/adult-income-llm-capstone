@@ -1,4 +1,3 @@
-Here is a single, paste-ready `README.md` you can drop straight into your repo:
 
 ```md
 # Adult Income LLM Capstone
@@ -10,6 +9,19 @@ A modular machine learning and FastAPI project that predicts whether annual inco
 This project trains a classification model on the Adult Income dataset and serves predictions through a FastAPI API. It also includes LLM-backed explanation endpoints that translate model output into short, non-technical explanations for end users. 
 
 The repository is organized so training, evaluation, prediction, LLM integration, and API routing remain separated. That structure improves maintainability, testing, and future extensibility for MLOps and MLSecOps-oriented enhancements. 
+
+## Dataset
+
+This project uses the **Adult (Census Income)** dataset from the UCI Machine Learning Repository to predict whether a person’s annual income exceeds $50,000 based on demographic and work-related attributes such as age, education, occupation, marital status, and hours worked per week. The dataset was extracted from the 1994 U.S. Census database by Barry Becker and is commonly used for binary classification and model comparison tasks.
+
+## Dataset Suitability and Limitations
+
+The Adult dataset is useful for demonstrating an end-to-end machine learning workflow because it contains a clear prediction target, a mix of categorical and numerical features, and a well-known benchmark structure that makes model comparison straightforward. It is especially useful here for showing preprocessing, classification, evaluation, explanation, and MLflow experiment tracking in a compact capstone project.
+
+However, this dataset also has important limitations. It reflects historical U.S. census data rather than current labor-market conditions, and fairness-focused work has noted that the Adult dataset is old, has limited documentation, and includes outdated feature encodings that reduce its suitability for modern real-world decision systems.
+
+Because of these constraints, this model should be interpreted as a **demonstration and educational tool**, not as a production-ready system for making real financial, hiring, or policy decisions. Its predictions may be less reliable when applied outside the dataset’s original population, time period, or social context.
+
 
 ## Project Structure
 

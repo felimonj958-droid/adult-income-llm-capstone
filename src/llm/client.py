@@ -1,10 +1,11 @@
 import json
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
+
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
@@ -15,12 +16,12 @@ class LLMClientError(Exception):
 
 class LLMClient:
     """
-    Minimal HTTP client wrapper around a chat-style LLM API.
+    Minimal HTTP client wrapper around an OpenAI-compatible chat API.
 
     Expects environment variables:
-    - LLM_API_BASE_URL: e.g. https://api.tokenfactory.nebius.com
+    - LLM_API_BASE_URL: e.g. https://api.tokenfactory.us-central1.nebius.com/v1
     - NEBIUS_API_KEY: your Nebius API key
-    - LLM_MODEL_NAME: e.g. deepseek-ai/DeepSeek-V3.2
+    - LLM_MODEL_NAME: e.g. Qwen/Qwen3.5-397B-A17B
     """
 
     def __init__(
@@ -54,7 +55,7 @@ class LLMClient:
         if cleaned.startswith("```"):
             lines = cleaned.splitlines()
 
-            if lines and lines.startswith("```"):
+            if lines and lines.strip().startswith("```"):
                 lines = lines[1:]
 
             if lines and lines[-1].strip() == "```":
@@ -70,6 +71,32 @@ class LLMClient:
         except json.JSONDecodeError as exc:
             raise LLMClientError(f"LLM returned invalid JSON: {text}") from exc
 
+    def _coerce_message_text(self, message: Dict[str, Any]) -> str:
+        content = message.get("content")
+        reasoning = message.get("reasoning")
+
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+
+        if isinstance(content, list):
+            text_parts: List[str] = []
+            for item in content:
+                if isinstance(item, dict):
+                    if item.get("type") == "text" and item.get("text"):
+                        text_parts.append(str(item["text"]))
+                    elif "content" in item and item["content"]:
+                        text_parts.append(str(item["content"]))
+                elif isinstance(item, str) and item.strip():
+                    text_parts.append(item)
+            combined = "\n".join(part.strip() for part in text_parts if part and part.strip()).strip()
+            if combined:
+                return combined
+
+        if isinstance(reasoning, str) and reasoning.strip():
+            return reasoning.strip()
+
+        raise LLMClientError(f"LLM API returned an empty message payload: {message}")
+
     def generate(
         self,
         messages: List[Dict[str, str]],
@@ -77,7 +104,7 @@ class LLMClient:
         temperature: float = 0.2,
         max_tokens: int = 250,
     ) -> str:
-        url = f"{self.base_url}/v1/chat/completions"
+        url = f"{self.base_url}/chat/completions"
 
         payload = {
             "model": model or self.default_model,
@@ -99,17 +126,14 @@ class LLMClient:
 
         try:
             choices = data.get("choices", [])
-            if not choices:
+            if not choices or not isinstance(choices, list):
                 raise LLMClientError(f"Unexpected LLM API response format: {data}")
 
-            message = choices[0].get("message", {})
-            content = message.get("content")
+            message = choices.get("message", {})
+            if not isinstance(message, dict):
+                raise LLMClientError(f"Unexpected LLM API response format: {data}")
 
-
-            if content is None or not str(content).strip():
-                raise LLMClientError(f"LLM API returned an empty message content: {data}")
-
-            return str(content).strip()
+            return self._coerce_message_text(message)
         except (AttributeError, IndexError, TypeError) as exc:
             raise LLMClientError(f"Unexpected LLM API response format: {data}") from exc
 
