@@ -329,6 +329,22 @@ If needed, refresh the schema directly:
 http://127.0.0.1:8000/openapi.json
 ```
 
+
+Model Evaluation and Experiment Tracking
+Three candidate model configurations were evaluated for the Adult Income classification task: Logistic Regression, Random Forest, and Gradient Boosting. MLflow was used to log hyperparameters, metrics, and trained model artifacts across at least five experiment runs with meaningfully different configurations.
+
+The best-performing model was Gradient Boosting, which achieved the following held-out test metrics:
+
+Metric	Score
+Accuracy	0.869
+Precision	0.793
+Recall	0.617
+F1 Score	0.694
+ROC AUC	0.924
+Based on these results, Gradient Boosting was selected as the production model used by the application for structured prediction and LLM-assisted explanation.
+
+
+
 ## Demo Video
 
 [Watch the project demo video](
