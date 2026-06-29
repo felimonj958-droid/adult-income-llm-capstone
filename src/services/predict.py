@@ -1,4 +1,6 @@
-from typing import Tuple
+from __future__ import annotations
+
+from typing import Any
 
 import pandas as pd
 
@@ -21,46 +23,90 @@ FEATURE_COLUMN_MAP = {
     "native_country": "native-country",
 }
 
+TARGET_POSITIVE_CLASS = ">50K"
+
+
+class PredictionServiceError(Exception):
+    """Raised when prediction cannot be completed safely."""
+
 
 def make_input_dataframe(features: Features) -> pd.DataFrame:
-    data = {
+    row = {
         output_column: getattr(features, field_name)
         for field_name, output_column in FEATURE_COLUMN_MAP.items()
     }
-    return pd.DataFrame([data])
+    return pd.DataFrame([row], columns=list(FEATURE_COLUMN_MAP.values()))
+
+
+def _extract_single_prediction(model: Any, df: pd.DataFrame) -> str:
+    if not hasattr(model, "predict"):
+        raise PredictionServiceError("Loaded model does not implement predict().")
+
+    try:
+        predictions = model.predict(df)
+    except Exception as exc:
+        raise PredictionServiceError(f"Model prediction failed: {exc}") from exc
+
+    if predictions is None or len(predictions) != 1:
+        raise PredictionServiceError("Model did not return exactly one prediction.")
+
+    prediction = str(predictions[0]).strip()
+    if not prediction:
+        raise PredictionServiceError("Model returned an empty prediction label.")
+
+    return prediction
+
+
+def _get_positive_class_probability(model: Any, df: pd.DataFrame) -> float:
+    if not hasattr(model, "predict_proba"):
+        return 0.0
+
+    if not hasattr(model, "classes_"):
+        raise PredictionServiceError("Model exposes predict_proba() but not classes_.")
+
+    try:
+        probabilities = model.predict_proba(df)
+    except Exception as exc:
+        raise PredictionServiceError(f"Model probability prediction failed: {exc}") from exc
+
+    if probabilities is None or len(probabilities) != 1:
+        raise PredictionServiceError("Model did not return exactly one probability row.")
+
+    classes = [str(label).strip() for label in model.classes_]
+    if TARGET_POSITIVE_CLASS not in classes:
+        raise PredictionServiceError(
+            f"Positive class '{TARGET_POSITIVE_CLASS}' not found in model classes."
+        )
+
+    class_index = classes.index(TARGET_POSITIVE_CLASS)
+
+    try:
+        probability = float(probabilities[0][class_index])
+    except (IndexError, TypeError, ValueError) as exc:
+        raise PredictionServiceError("Could not extract positive-class probability.") from exc
+
+    if not 0.0 <= probability <= 1.0:
+        raise PredictionServiceError("Predicted probability is out of bounds.")
+
+    return probability
+
+
+def get_model_name(model: Any) -> str:
+    if hasattr(model, "named_steps") and "model" in model.named_steps:
+        return model.named_steps["model"].__class__.__name__
+
+    name = model.__class__.__name__.strip()
+    if not name:
+        raise PredictionServiceError("Unable to determine model name.")
+    return name
 
 
 def predict_from_features(features: Features) -> PredictionResult:
     model = get_model()
     df = make_input_dataframe(features)
 
-    prediction = model.predict(df)[0]
-    probability_gt_50k = get_probability_gt_50k(model, df)
-    model_name = get_model_name(model)
-
     return PredictionResult(
-        prediction=prediction,
-        probability_gt_50k=probability_gt_50k,
-        model_name=model_name,
+        prediction=_extract_single_prediction(model, df),
+        probability_gt_50k=_get_positive_class_probability(model, df),
+        model_name=get_model_name(model),
     )
-
-
-def get_probability_gt_50k(model, df: pd.DataFrame) -> float:
-    if not hasattr(model, "predict_proba"):
-        return 0.0
-
-    probabilities = model.predict_proba(df)[0]
-    classes = list(model.classes_)
-    gt_50k_index = classes.index(">50K")
-    return float(probabilities[gt_50k_index])
-
-
-def get_model_name(model) -> str:
-    if hasattr(model, "named_steps") and "model" in model.named_steps:
-        return model.named_steps["model"].__class__.__name__
-    return model.__class__.__name__
-
-
-def get_raw_prediction(features: Features) -> Tuple[str, float, str]:
-    result = predict_from_features(features)
-    return result.prediction, result.probability_gt_50k, result.model_name
