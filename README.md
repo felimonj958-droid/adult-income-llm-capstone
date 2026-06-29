@@ -70,7 +70,7 @@ tests/
 ### 1. Clone the repository
 
 ```bash
-git clone <YOUR_REPO_URL>
+git clone https://github.com/felimonj958-droid/adult-income-llm-capstone
 cd adult-income-llm-capstone
 ```
 
