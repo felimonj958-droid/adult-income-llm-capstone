@@ -329,6 +329,11 @@ If needed, refresh the schema directly:
 http://127.0.0.1:8000/openapi.json
 ```
 
+## Demo Video
+
+[Watch the project demo video](
+    https://drive.google.com/file/d/1qfaEl356QfkfhwU0VW2Scj4nyGKkIAU8/view?usp=drive_link
+
 ## Next Improvements
 
 - Add stronger clarification behavior for ambiguous chat inputs.
